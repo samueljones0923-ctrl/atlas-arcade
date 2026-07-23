@@ -1,4 +1,4 @@
--- Atlas Arcade: competitive-time leaderboards and optional cloud progress
+-- Atlas Arcade 2.0: competitive-time leaderboards and optional cloud progress
 -- Run this file once in the Supabase SQL Editor for your project.
 
 create schema if not exists extensions;
@@ -69,7 +69,7 @@ declare
   v_rank_elapsed integer;
   v_rank_created timestamptz;
 begin
-  if p_sprint_version <> 1 then
+  if p_sprint_version <> 2 then
     raise exception 'Unsupported competitive rules version';
   end if;
 

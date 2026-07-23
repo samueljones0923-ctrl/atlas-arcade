@@ -1,15 +1,15 @@
 # Supabase setup for Atlas Arcade
 
-Supabase is optional. Without it, all six game modes work, progress stays in the
-current browser, and every mode keeps its own local best competitive time.
+Supabase is optional. Without it, all six modes work, progress stays in the
+current browser, and every mode keeps its own local best Competitive time.
 
 With Supabase, Atlas Arcade can provide:
 
 - Shared fastest-time boards for Locate, Capitals, Flags, Map → Name, Mixed
   Mission, and Spell All
-- One best completed 197-country competitive time per player and mode
+- One best completed 197-country Competitive time per player and mode
 - Optional email/password accounts
-- Private cross-device progress, favorites, achievements, and best times
+- Private cross-device progress, favorites, achievements, and mode history
 
 ## Install the schema
 
@@ -23,15 +23,14 @@ The script creates:
 - `public.atlas_sprint_scores`
 - `public.atlas_player_progress`
 - `public.submit_atlas_sprint(...)`
-- supporting indexes, grants, and row-level security policies
+- supporting indexes, grants, validation, and row-level security policies
 
-The `sprint` names are retained internally for database compatibility. Players
+The internal `sprint` names are retained for database compatibility. Players
 see the feature as **Competitive**.
 
 ## Add the public configuration
 
-Copy the project URL and publishable key from the project's Connect/API Keys
-area, then edit the root `config.js`:
+Copy the Project URL and Publishable key, then edit the root `config.js`:
 
 ```js
 window.ATLAS_CONFIG = Object.freeze({
@@ -39,56 +38,54 @@ window.ATLAS_CONFIG = Object.freeze({
   supabasePublishableKey: 'sb_publishable_YOUR_KEY',
   leaderboardEnabled: true,
   accountsEnabled: true,
-  siteUrl: 'https://YOUR_PUBLIC_SITE/'
+  siteUrl: 'https://atlas-arcade.pages.dev/'
 });
 ```
 
-The publishable key is intended for frontend use when row-level security and
+Replace the example address with the exact deployed site. Keep the trailing
+slash.
+
+A publishable key is intended for frontend use when row-level security and
 least-privilege grants are configured. Never expose a secret key,
 `service_role` key, database password, or SMTP password.
 
 ## Authentication URLs
 
-For accounts, set the exact production address under **Authentication → URL
-Configuration** as the Site URL and add it to Redirect URLs. Add
-`http://localhost:8000/**` only when local testing is needed.
+Accounts require the exact production address under **Authentication → URL
+Configuration**:
+
+1. Set it as the Site URL.
+2. Add it to Redirect URLs.
+3. Add `http://localhost:8000/**` only when local testing is needed.
 
 ## Email
 
-Accounts use email confirmation and password-reset messages. Configure a custom
-SMTP provider before a public launch. Keep SMTP credentials in Supabase.
+Accounts use confirmation and password-reset email. Configure a custom SMTP
+provider before opening accounts to a large audience. Keep SMTP credentials in
+Supabase.
 
-The shared leaderboard can be enabled with `accountsEnabled: false`; guest
-players receive a persistent browser identity and never need email.
+Shared leaderboards can be enabled with `accountsEnabled: false`; guest players
+receive a persistent browser identity and do not need email.
 
-## Public leaderboard data
+## Public score data
 
-Visitors can read only these score columns:
-
-- rules version
-- game mode
-- player name
-- raw elapsed time
-- mistakes
-- generated final time
-- completion date
-
-The one-way player key and optional account ID are not granted through the
-public query.
+Visitors can read only the public ranking fields: rules version, game mode,
+player name, elapsed time, mistakes, official time, and completion date. The
+one-way player key and optional account ID are not exposed through the public
+column grant.
 
 ## Private progress
 
 `atlas_player_progress` is available only to the signed-in user whose Auth ID
-matches the row. Guests never receive access to that table and continue using
-local storage.
+matches the row. Guests continue using local storage.
 
 ## Anti-cheat boundary
 
-The submission function rejects unsupported modes or versions, non-197
+The submission function rejects unsupported modes and versions, non-197
 completions, out-of-range times and mistakes, invalid names and identities,
-rapid repeated submissions, and direct public table writes. It keeps only a
-player's faster time.
+rapid duplicate submissions, and direct public table writes. It keeps only a
+player's faster result.
 
-Because the game runs in the browser, a determined person can still inspect or
-automate the client. Treat this as a friendly public leaderboard. High-stakes
-competition requires trusted server-side session and answer verification.
+Because the game runs in a browser, a determined person can still inspect or
+automate the client. Treat it as a friendly public leaderboard. High-stakes
+competition needs trusted server-side sessions and answer-event verification.

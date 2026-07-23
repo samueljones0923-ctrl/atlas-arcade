@@ -5,10 +5,20 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <meta content="#08111f" name="theme-color"/>
+<meta content="yes" name="mobile-web-app-capable"/>
+<meta content="yes" name="apple-mobile-web-app-capable"/>
+<meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"/>
+<meta content="Atlas Arcade" name="apple-mobile-web-app-title"/>
 <meta content="Atlas Arcade is a polished world geography game with country, capital, flag, map-name, mixed and spell-all modes, plus optional fastest-time leaderboards for every mode." name="description"/>
+<meta content="index, follow" name="robots"/>
+<meta content="website" property="og:type"/>
 <meta content="Atlas Arcade — Master the World Map" property="og:title"/>
 <meta content="Locate, identify and spell every country. Play casually or compare your fastest complete times in any game mode." property="og:description"/>
 <meta content="assets/social-preview.png" property="og:image"/>
+<meta content="summary_large_image" name="twitter:card"/>
+<meta content="Atlas Arcade — Master the World Map" name="twitter:title"/>
+<meta content="Six polished geography games for countries, capitals, flags, map recognition and spelling." name="twitter:description"/>
+<meta content="assets/social-preview.png" name="twitter:image"/>
 <title>Atlas Arcade — Master the World Map</title>
 <link href="assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="manifest.webmanifest" rel="manifest"/>
@@ -42,7 +52,10 @@
 <strong id="headerScore">0</strong>
 </span>
 <button aria-label="Open account" class="account-button" hidden="" id="accountButton" title="Account" type="button">
-<svg aria-hidden="true" viewbox="0 0 24 24"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"></path></svg><span id="accountButtonLabel">Sign in</span></button><button aria-label="Mute sound" class="icon-button" id="soundToggle" title="Sound (M)" type="button">
+<svg aria-hidden="true" viewbox="0 0 24 24"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"></path></svg><span id="accountButtonLabel">Sign in</span></button><button aria-label="Install Atlas Arcade" class="icon-button install-button" hidden="" id="installButton" title="Install app" type="button">
+<svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4"></path><path d="M5 15v4h14v-4"></path></svg>
+</button>
+<button aria-label="Mute sound" class="icon-button" id="soundToggle" title="Sound (M)" type="button">
 <svg aria-hidden="true" class="icon-sound-on" viewbox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z"></path><path d="M16 9.5c1.4 1.4 1.4 3.6 0 5M18.5 7c2.8 2.8 2.8 7.2 0 10"></path></svg>
 <svg aria-hidden="true" class="icon-sound-off" viewbox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z"></path><path d="m17 10 5 5m0-5-5 5"></path></svg>
 </button>
@@ -65,7 +78,7 @@
 <div class="mission-topline">
 <span class="eyebrow-chip" id="modeChip">Locate</span>
 <div class="mission-top-actions"><button class="text-button" id="newGameButton" type="button">New game</button><button aria-label="Collapse game panel" aria-expanded="true" class="panel-toggle" id="missionCollapseButton" title="Collapse game panel" type="button">‹</button></div>
-</div><div class="sprint-badge" hidden="" id="sprintBadge"><span aria-hidden="true">◷</span><p><strong>Competitive</strong><small>197 countries · +2 seconds per mistake</small></p></div>
+</div><div class="sprint-badge" hidden="" id="sprintBadge"><span aria-hidden="true">◷</span><p><strong>Competitive</strong><small>197 countries · +2 seconds per mistake <b id="sprintBest">· Best —</b></small></p></div>
 <div aria-label="Current game statistics" class="score-grid">
 <div><span id="questionLabel">Question</span><strong id="questionStat">0 / 0</strong></div>
 <div><span id="scoreLabel">Score</span><strong id="scoreStat">0</strong></div>
@@ -235,6 +248,9 @@
 <g id="markerLayer"></g>
 </g>
 </svg>
+<div aria-hidden="true" class="map-reticle" hidden="" id="mapReticle"><span></span></div>
+<div aria-hidden="true" class="map-zoom-readout" id="zoomReadout">1×</div>
+<div aria-live="assertive" class="game-countdown" hidden="" id="countdownOverlay" role="status"><span id="countdownValue">3</span><small id="countdownLabel">Get ready</small></div>
 <div class="map-tooltip" hidden="" id="mapTooltip" role="tooltip"></div>
 <div class="map-callout" hidden="" id="mapCallout">
 <span aria-hidden="true" id="calloutFlag"></span>
@@ -431,6 +447,7 @@
 <button class="primary-button compact" id="startSprintButton" type="button">Start Competitive Game</button>
 <button class="ghost-button compact" id="refreshLeaderboardButton" type="button">Refresh</button>
 </div>
+<div class="leaderboard-personal-best" id="leaderboardPersonalBest"><span>Your best</span><strong id="leaderboardBestTime">—</strong><small id="leaderboardBestMeta">Finish a Competitive game to set one.</small></div>
 <p aria-live="polite" class="leaderboard-status" id="leaderboardStatus" role="status">Loading records…</p>
 <div class="leaderboard-table-wrap">
 <table class="leaderboard-table">
@@ -491,6 +508,14 @@
 <div class="meter extra-large"><span id="worldMasteryMeter"></span></div>
 <p id="worldMasteryCopy">Start a round and the map will learn where you need repetition.</p>
 </section>
+<section class="mode-progress-section">
+<div class="section-head"><div><h3>By game mode</h3><p>Accuracy, completed games and your best Competitive time.</p></div></div>
+<div class="mode-progress-grid" id="modeProgressGrid"></div>
+</section>
+<section class="recent-runs-section">
+<div class="section-head"><div><h3>Recent games</h3><p>Your latest completed rounds on this device.</p></div></div>
+<div class="recent-runs" id="recentRuns"></div>
+</section>
 <div class="stats-columns">
 <section>
 <div class="section-head"><h3>Weak spots</h3><button class="text-button" id="practiceWeakButton" type="button">Practice all</button></div>
@@ -520,6 +545,8 @@
 <div><kbd>+</kbd><span>Zoom in</span></div>
 <div><kbd>−</kbd><span>Zoom out</span></div>
 <div><kbd>0</kbd><span>Fit the current scope</span></div>
+<div><kbd>↑ ↓ ← →</kbd><span>Pan the map</span></div>
+<div><kbd>Double-click</kbd><span>Zoom on open ocean or in Study</span></div>
 <div><kbd>M</kbd><span>Toggle sound</span></div>
 <div><kbd>?</kbd><span>Open this panel</span></div>
 <div><kbd>Esc</kbd><span>Close a dialog</span></div>

@@ -2,65 +2,82 @@
 
 ![Atlas Arcade preview](assets/social-preview.png)
 
-Atlas Arcade is a responsive world-geography game built as a plain static
-website. It opens on a full-screen game picker rather than inside a floating
-window. During desktop play, the clue, score, hints, and feedback stay in a
-fixed panel on the left while the interactive map stays on the right. On
-phones, that panel becomes a slide-out drawer over a full-screen map.
+Atlas Arcade is a full-screen world-geography game built as a plain static
+website. It keeps the classic layout: the mission, score, hints, and feedback
+stay on the left while the interactive map stays on the right. On phones, the
+same panel becomes a slide-out drawer over a full-screen map.
 
-The game works without a framework, build server, package manager, account, or
-API key. Progress and personal best times are saved locally as soon as the
-files are opened. A Supabase project is optional and adds shared leaderboards
-and cross-device accounts.
+The game has no framework or package dependencies. It can run as a normal
+website, an installable phone app, or the included single-file offline edition.
+Local progress works immediately. Supabase is optional and adds shared
+fastest-time boards plus cross-device accounts.
 
-## Game modes
+## Six game modes
 
 - **Locate** — see a country name and click it on the map.
-- **Capitals** — see a capital and find its country.
+- **Capitals** — see a capital and locate its country.
 - **Flags** — identify bundled flag artwork and locate the country.
 - **Map → Name** — type the highlighted country's name.
 - **Mixed Mission** — rotate through names, capitals, flags, and map shapes.
 - **Spell All** — name all 197 countries in any order.
 
-Every mode can be played normally. **Competitive** is an optional setup
-toggle, not a separate game. It standardizes the selected mode to the complete
-197-country world set, disables hints and skips, and adds two seconds per
-mistake. Each mode has its own fastest-time leaderboard, so Locate, Capitals,
-Flags, Map → Name, Mixed Mission, and Spell All never share records.
+Every mode supports normal practice and an optional **Competitive** setting.
+Competitive uses the complete 197-country set, disables hints and skips,
+starts with a clear countdown, and adds two seconds per mistake. Each mode has
+its own independent fastest-time category.
 
-The answer feedback during play is deliberately quiet: there is no floating
-country card or bordered result rectangle over the map after each guess.
+## What was polished in this edition
+
+- Full-viewport home and gameplay screens with no page scrolling during rounds
+- Fixed desktop mission panel and full-screen mobile map drawer
+- Precise crosshair cursor for mouse players without a bordered answer box
+- Zoom toward the cursor, smooth dragging, pinch zoom, keyboard panning, and
+  zoom up to 24×
+- A balanced country queue that avoids long runs from the same part of the
+  world
+- Faster correct-answer transitions and quiet feedback in the left panel
+- Competitive 3–2–1 countdown so timing begins consistently
+- Per-mode progress cards, recent games, personal bests, and exportable data
+- Real locally bundled flag artwork rather than emoji or abbreviations
+- Install prompt, offline cache updates, touch-safe controls, and reduced-motion
+  handling
+- Cloudflare Pages and GitHub Pages deployment support
 
 ## Run it locally
 
-For a quick offline test, open `standalone.html` directly.
+Open `standalone.html` for the quickest offline test.
 
-For the complete PWA and online-feature test, serve the folder:
+For the complete installable edition, serve the folder:
 
 ```bash
 python -m http.server 8000
 ```
 
-Then open `http://localhost:8000`.
+Then open:
 
-## Publish it
+```text
+http://localhost:8000
+```
 
-The project includes an automatic GitHub Pages workflow and a separate public
-site builder. Follow [`PUBLISHING-GUIDE.md`](PUBLISHING-GUIDE.md) from top to
-bottom. The basic flow is:
+## Publish it free
 
-1. Put this folder at the root of a GitHub repository.
-2. Push it to `main`.
-3. Select **GitHub Actions** under **Settings → Pages**.
-4. Optionally create a Supabase project, run `supabase/schema.sql`, and add the
-   browser-safe project URL and publishable key to `config.js`.
+The recommended route is Cloudflare Pages connected to the existing GitHub
+repository. Use these build values:
 
-The workflow runs `python build_public.py`, uploads only runtime files, and
-deploys them to GitHub Pages.
+```text
+Framework preset: None
+Build command: node build_public.mjs
+Build output directory: _site
+Production branch: main
+```
 
-## Public configuration
+Follow [`CLOUDFLARE-PAGES-GUIDE.md`](CLOUDFLARE-PAGES-GUIDE.md) one step at a
+time. GitHub Pages remains supported through the included workflow and the
+broader [`PUBLISHING-GUIDE.md`](PUBLISHING-GUIDE.md).
 
-`config.js` starts with all online services disabled:
+## Online configuration
+
+`config.js` starts with online services disabled:
 
 ```js
 window.ATLAS_CONFIG = Object.freeze({
@@ -75,46 +92,51 @@ window.ATLAS_CONFIG = Object.freeze({
 | Leaderboard | Accounts | Result |
 |---|---|---|
 | `false` | `false` | Local best times and browser-only progress |
-| `true` | `false` | Shared best times with a guest browser identity |
-| `false` | `true` | Accounts/cloud progress with local leaderboard views |
-| `true` | `true` | Shared leaderboards plus cross-device accounts |
+| `true` | `false` | Shared fastest times with guest identities |
+| `false` | `true` | Accounts/cloud progress with local times |
+| `true` | `true` | Shared times plus cross-device accounts |
 
-Only a Supabase **publishable** key belongs in this browser file. Never place a
+Only a Supabase **publishable** key belongs in this browser file. Never add a
 secret key, `service_role` key, database password, SMTP password, or private
-GitHub token in the project.
+GitHub token.
 
-## Rebuild generated editions
+## Build generated editions
 
-After changing the source files, rebuild the downloadable single-file edition:
+Build the exact static deployment directory with Node:
 
 ```bash
-python build_standalone.py
+node build_public.mjs
 ```
 
-Build the exact directory deployed by GitHub Pages:
+A Python equivalent remains available:
 
 ```bash
 python build_public.py
 ```
 
-The generated `_site` directory is intentionally ignored by Git.
+Rebuild the portable single-file edition after source changes:
+
+```bash
+python build_standalone.py
+```
 
 ## Project structure
 
 ```text
 atlas-arcade/
-├── .github/workflows/deploy-pages.yml  Automatic Pages deployment
+├── .github/workflows/deploy-pages.yml  GitHub Pages deployment
 ├── assets/                             Icons, preview, and local flag atlas
 ├── supabase/schema.sql                 Leaderboard/account database schema
 ├── index.html                          Application markup
 ├── styles.css                          Responsive visual design
-├── app.js                              Game, map, progress, auth, and boards
+├── app.js                              Game, map, progress, auth, and times
 ├── data.js                             Bundled geography and map data
 ├── config.js                           Public online-service settings
 ├── service-worker.js                   Offline application cache
 ├── manifest.webmanifest                Installable-app metadata
+├── build_public.mjs                    Cloudflare/static deployment builder
+├── build_public.py                     Python deployment builder
 ├── build_standalone.py                 Single-file builder
-├── build_public.py                     Deployment-artifact builder
 └── standalone.html                     Portable offline edition
 ```
 
@@ -123,11 +145,10 @@ atlas-arcade/
 Click or tap a country to answer. Drag to pan. Use the mouse wheel, map buttons,
 or a two-finger pinch to zoom up to 24×.
 
-Keyboard shortcuts:
-
 - `H` — hint in normal rounds
 - `S` — skip in normal rounds
 - `+` / `-` — zoom
+- Arrow keys — pan the map
 - `0` — fit the current scope
 - `M` — sound
 - `?` — help
@@ -137,17 +158,15 @@ Keyboard shortcuts:
 The original site code is MIT licensed. The generalized map geometry is based
 on public-domain Natural Earth data. The bundled flag atlas is derived from
 Google Noto Color Emoji flag artwork and is packaged locally. See
-[`ATTRIBUTION.md`](ATTRIBUTION.md) for details and [`PRIVACY.md`](PRIVACY.md)
-before a public launch.
+[`ATTRIBUTION.md`](ATTRIBUTION.md) and [`PRIVACY.md`](PRIVACY.md).
 
 ## Competitive integrity
 
-The included SQL rejects malformed direct writes, keeps one best result per
-identity and mode, checks the 197-country completion count, calculates final
-time in the database, and applies row-level security. It is suitable for a
-friendly public game.
+The optional SQL schema validates the mode, rules version, completion count,
+raw time, mistake count, player name, and identity; calculates official time in
+the database; and keeps one fastest result per identity and mode. It is suitable
+for a friendly public game.
 
-A static browser game is not a tamper-proof tournament system. A determined
-attacker can inspect client code or automate requests. Prize competitions or
-formal record certification would need a trusted server that issues sessions
-and validates answer events.
+A static browser game is not a tamper-proof tournament platform. Cash prizes or
+formal record certification would require trusted server-side sessions and
+answer-event validation.

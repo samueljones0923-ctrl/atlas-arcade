@@ -15,6 +15,8 @@ RUNTIME_FILES = (
     "app.js",
     "manifest.webmanifest",
     "service-worker.js",
+    "_headers",
+    "robots.txt",
     ".nojekyll",
 )
 RUNTIME_DIRECTORIES = ("assets",)

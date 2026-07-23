@@ -1,0 +1,14 @@
+ATLAS ARCADE 2.0 UPDATE FOR THE EXISTING GITHUB REPOSITORY
+
+1. Open this extracted atlas-arcade-update folder.
+2. In GitHub, open the atlas-arcade repository and choose Add file > Upload files.
+3. Drag everything INSIDE this folder into GitHub's upload area.
+4. Commit with the message: Update Atlas Arcade 2.0
+5. Do not delete config.js, data.js, the assets folder, or your existing
+   .github/workflows/static.yml file.
+6. After committing, connect the repository to Cloudflare Pages using
+   CLOUDFLARE-PAGES-GUIDE.md.
+
+This update intentionally leaves your existing configuration, geography data,
+flag assets, and GitHub Pages workflow untouched. It updates the game code and
+adds the Cloudflare build files.

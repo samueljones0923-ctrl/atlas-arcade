@@ -19,9 +19,11 @@
     ...(window.ATLAS_CONFIG || {})
   });
   const SUPABASE_JS_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.106.2/dist/umd/supabase.min.js';
-  const SPRINT_VERSION = 1;
+  const SPRINT_VERSION = 2;
   const SPRINT_PENALTY_SECONDS = 2;
   const MAX_MAP_SCALE = 24;
+  const COMPETITIVE_COUNTDOWN_STEPS = ['3', '2', '1', 'GO'];
+  const MAP_ANSWER_MODES = new Set(['locate', 'capitals', 'flags']);
   const FLAG_COLUMNS = 14;
   const FLAG_ROWS = 15;
   const countries = DATA.countries;
@@ -49,6 +51,7 @@
     missionPanel: $('#missionPanel'),
     missionCollapseButton: $('#missionCollapseButton'),
     sprintBadge: $('#sprintBadge'),
+    sprintBest: $('#sprintBest'),
     questionLabel: $('#questionLabel'),
     scoreLabel: $('#scoreLabel'),
     streakLabel: $('#streakLabel'),
@@ -94,6 +97,7 @@
     headerScore: $('#headerScore'),
     accountButton: $('#accountButton'),
     accountButtonLabel: $('#accountButtonLabel'),
+    installButton: $('#installButton'),
     soundToggle: $('#soundToggle'),
     themeToggle: $('#themeToggle'),
     fullscreenToggle: $('#fullscreenToggle'),
@@ -110,6 +114,11 @@
     mobilePromptLead: $('#mobilePromptLead'),
     mobilePromptText: $('#mobilePromptText'),
     mobilePromptMeta: $('#mobilePromptMeta'),
+    mapReticle: $('#mapReticle'),
+    zoomReadout: $('#zoomReadout'),
+    countdownOverlay: $('#countdownOverlay'),
+    countdownValue: $('#countdownValue'),
+    countdownLabel: $('#countdownLabel'),
     mapTooltip: $('#mapTooltip'),
     mapCallout: $('#mapCallout'),
     calloutFlag: $('#calloutFlag'),
@@ -167,6 +176,9 @@
     leaderboardStatus: $('#leaderboardStatus'),
     leaderboardRows: $('#leaderboardRows'),
     leaderboardScopeLabel: $('#leaderboardScopeLabel'),
+    leaderboardPersonalBest: $('#leaderboardPersonalBest'),
+    leaderboardBestTime: $('#leaderboardBestTime'),
+    leaderboardBestMeta: $('#leaderboardBestMeta'),
     playerNameInput: $('#playerNameInput'),
     savePlayerNameButton: $('#savePlayerNameButton'),
     startSprintButton: $('#startSprintButton'),
@@ -210,6 +222,8 @@
     practiceWeakButton: $('#practiceWeakButton'),
     achievementCount: $('#achievementCount'),
     achievementGrid: $('#achievementGrid'),
+    modeProgressGrid: $('#modeProgressGrid'),
+    recentRuns: $('#recentRuns'),
     exportStatsButton: $('#exportStatsButton'),
     resetStatsButton: $('#resetStatsButton'),
     helpDialog: $('#helpDialog'),
@@ -287,6 +301,10 @@
   let cloudSyncInFlight = false;
   let accountRecoveryActive = false;
   let lastSyncedAuthUserId = null;
+  let deferredInstallPrompt = null;
+  let countdownHandles = [];
+  let mapInertiaFrame = 0;
+  let mapTransformFrame = 0;
 
   const mapState = {
     scale: 1,
@@ -299,7 +317,11 @@
     pinchDistance: 0,
     pinchCenter: null,
     moved: 0,
-    suppressClickUntil: 0
+    suppressClickUntil: 0,
+    velocityX: 0,
+    velocityY: 0,
+    lastMoveAt: 0,
+    reticlePoint: null
   };
 
   function makePlayerId() {
@@ -309,7 +331,7 @@
 
   function defaultProgress() {
     return {
-      version: 2,
+      version: 3,
       games: 0,
       totalQuestions: 0,
       totalSolved: 0,
@@ -325,7 +347,9 @@
       playerId: makePlayerId(),
       playerName: 'Explorer',
       sprintRecords: {},
-      localSprintScores: []
+      localSprintScores: [],
+      modeStats: {},
+      recentRuns: []
     };
   }
 
@@ -336,7 +360,7 @@
       const merged = {
         ...base,
         ...(parsed || {}),
-        version: 2,
+        version: 3,
         countries: parsed?.countries || {},
         unlocked: parsed?.unlocked || {},
         continentWins: parsed?.continentWins || {},
@@ -345,7 +369,9 @@
         playerId: parsed?.playerId || base.playerId,
         playerName: sanitizePlayerName(parsed?.playerName || '') || 'Explorer',
         sprintRecords: parsed?.sprintRecords || {},
-        localSprintScores: Array.isArray(parsed?.localSprintScores) ? parsed.localSprintScores : []
+        localSprintScores: Array.isArray(parsed?.localSprintScores) ? parsed.localSprintScores : [],
+        modeStats: parsed?.modeStats && typeof parsed.modeStats === 'object' ? parsed.modeStats : {},
+        recentRuns: Array.isArray(parsed?.recentRuns) ? parsed.recentRuns.slice(0, 12) : []
       };
       return merged;
     } catch {
@@ -466,6 +492,27 @@
       [array[index], array[swap]] = [array[swap], array[index]];
     }
     return array;
+  }
+
+  function balancedCountryOrder(input, rng = Math.random) {
+    const groups = new Map();
+    input.forEach(country => {
+      const key = country.continent || 'World';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(country);
+    });
+    const queues = [...groups.entries()].map(([continent, items]) => ({ continent, items: randomShuffle(items, rng) }));
+    const ordered = [];
+    let lastContinent = '';
+    while (ordered.length < input.length) {
+      const available = queues.filter(group => group.items.length);
+      if (!available.length) break;
+      const randomized = randomShuffle(available, rng).sort((a, b) => b.items.length - a.items.length);
+      const chosen = randomized.find(group => group.continent !== lastContinent) || randomized[0];
+      ordered.push(chosen.items.shift());
+      lastContinent = chosen.continent;
+    }
+    return ordered;
   }
 
   function hashString(value) {
@@ -658,10 +705,56 @@
     return Number(a.elapsedMs) <= Number(b.elapsedMs) ? a : b;
   }
 
+  function modeStat(mode, source = progress) {
+    const stored = source?.modeStats?.[mode] || {};
+    return {
+      runs: Number(stored.runs) || 0,
+      competitiveRuns: Number(stored.competitiveRuns) || 0,
+      questions: Number(stored.questions) || 0,
+      solved: Number(stored.solved) || 0,
+      firstTry: Number(stored.firstTry) || 0,
+      mistakes: Number(stored.mistakes) || 0,
+      bestScore: Number(stored.bestScore) || 0,
+      bestAccuracy: Number(stored.bestAccuracy) || 0,
+      bestStreak: Number(stored.bestStreak) || 0,
+      lastPlayed: stored.lastPlayed || ''
+    };
+  }
+
+  function mergeModeStat(localStat = {}, cloudStat = {}) {
+    const local = modeStat('unused', { modeStats: { unused: localStat } });
+    const cloud = modeStat('unused', { modeStats: { unused: cloudStat } });
+    const dates = [local.lastPlayed, cloud.lastPlayed].filter(Boolean).sort();
+    return {
+      runs: numericMax(local.runs, cloud.runs),
+      competitiveRuns: numericMax(local.competitiveRuns, cloud.competitiveRuns),
+      questions: numericMax(local.questions, cloud.questions),
+      solved: numericMax(local.solved, cloud.solved),
+      firstTry: numericMax(local.firstTry, cloud.firstTry),
+      mistakes: numericMax(local.mistakes, cloud.mistakes),
+      bestScore: numericMax(local.bestScore, cloud.bestScore),
+      bestAccuracy: numericMax(local.bestAccuracy, cloud.bestAccuracy),
+      bestStreak: numericMax(local.bestStreak, cloud.bestStreak),
+      lastPlayed: dates.at(-1) || ''
+    };
+  }
+
+  function mergeRecentRuns(localRuns = [], cloudRuns = []) {
+    const unique = new Map();
+    [...cloudRuns, ...localRuns].forEach(item => {
+      if (!item || typeof item !== 'object') return;
+      const key = String(item.id || `${item.completedAt || ''}-${item.mode || ''}-${item.durationMs || 0}`);
+      if (!unique.has(key)) unique.set(key, item);
+    });
+    return [...unique.values()]
+      .sort((a, b) => String(b.completedAt || '').localeCompare(String(a.completedAt || '')))
+      .slice(0, 12);
+  }
+
   function mergeProgress(localProgress, cloudProgress) {
     const local = localProgress || defaultProgress();
     const cloud = cloudProgress && typeof cloudProgress === 'object' ? cloudProgress : {};
-    const merged = { ...defaultProgress(), ...local, version: 2 };
+    const merged = { ...defaultProgress(), ...local, version: 3 };
     ['games', 'totalQuestions', 'totalSolved', 'firstTry', 'wrongGuesses', 'bestStreak', 'microCorrect'].forEach(key => {
       merged[key] = numericMax(local[key], cloud[key]);
     });
@@ -675,6 +768,11 @@
     new Set([...Object.keys(local.modeSolved || {}), ...Object.keys(cloud.modeSolved || {})]).forEach(mode => {
       merged.modeSolved[mode] = numericMax(local.modeSolved?.[mode], cloud.modeSolved?.[mode]);
     });
+    merged.modeStats = {};
+    new Set([...Object.keys(local.modeStats || {}), ...Object.keys(cloud.modeStats || {})]).forEach(mode => {
+      merged.modeStats[mode] = mergeModeStat(local.modeStats?.[mode], cloud.modeStats?.[mode]);
+    });
+    merged.recentRuns = mergeRecentRuns(local.recentRuns, cloud.recentRuns);
     merged.favorites = [...new Set([...(local.favorites || []), ...(cloud.favorites || [])])].filter(iso2 => byIso.has(iso2));
     merged.sprintRecords = {};
     new Set([...Object.keys(local.sprintRecords || {}), ...Object.keys(cloud.sprintRecords || {})]).forEach(mode => {
@@ -882,6 +980,8 @@
     progress.sprintRecords[record.mode] = betterSprintRecord(existing, record);
     progress.localSprintScores = Object.values(progress.sprintRecords).filter(Boolean);
     saveProgress();
+    updateLeaderboardPersonalBest(record.mode);
+    if (run?.config?.mode === record.mode && el.sprintBest) el.sprintBest.textContent = `· Best ${formatRaceTime(progress.sprintRecords[record.mode].officialMs)}`;
   }
 
   function setSprintSubmissionStatus(message, type = '') {
@@ -931,6 +1031,16 @@
     return Number.isNaN(date.valueOf()) ? '—' : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
   }
 
+  function updateLeaderboardPersonalBest(mode) {
+    const best = progress.sprintRecords?.[mode];
+    if (!el.leaderboardBestTime || !el.leaderboardBestMeta) return;
+    el.leaderboardBestTime.textContent = best ? formatRaceTime(best.officialMs) : '—';
+    el.leaderboardBestMeta.textContent = best
+      ? `${formatRaceTime(best.elapsedMs)} raw · ${best.mistakes} mistake${best.mistakes === 1 ? '' : 's'} · ${leaderboardDate(best.createdAt)}`
+      : `Finish Competitive ${modeLabels[mode]} to set one.`;
+    el.leaderboardPersonalBest?.classList.toggle('has-record', Boolean(best));
+  }
+
   function renderLeaderboardRows(rows, local = false) {
     el.leaderboardScopeLabel.textContent = local ? 'Times on this device' : 'Worldwide times';
     if (!rows.length) {
@@ -949,6 +1059,7 @@
 
   async function loadLeaderboard(mode = leaderboardMode) {
     leaderboardMode = mode;
+    updateLeaderboardPersonalBest(mode);
     $$('#leaderboardModeTabs [data-mode]').forEach(button => {
       const active = button.dataset.mode === mode;
       button.classList.toggle('is-active', active);
@@ -1168,12 +1279,13 @@
       selectStudyCountry(iso2, false);
       return;
     }
+    if (run?.active && run.ready === false) return;
     if (run?.active && run.currentMode === 'spelling') {
       setFeedback('Type the country name to fill it on the map.', 'info');
       el.spellInput.focus();
       return;
     }
-    if (!run?.active || !run.current || run.transitioning) {
+    if (!run?.active || run.ready === false || !run.current || run.transitioning) {
       const country = byIso.get(iso2);
       showMapCallout(country);
       return;
@@ -1187,7 +1299,7 @@
   }
 
   function registerMistake(message, { clickedCountry = null, allowReveal = true } = {}) {
-    if (!run?.active) return;
+    if (!run?.active || run.ready === false) return;
     run.questionMistakes += 1;
     run.wrongGuesses += 1;
     run.streak = 0;
@@ -1228,10 +1340,79 @@
     return vertical || horizontal || 'very close by';
   }
 
+  function mapAcceptsPointerAnswer() {
+    return Boolean(currentView === 'play' && run?.active && run.ready !== false && MAP_ANSWER_MODES.has(run.currentMode) && !run.transitioning);
+  }
+
+  function updateMapInteractionMode() {
+    const targeting = mapAcceptsPointerAnswer();
+    el.mapStage.classList.toggle('is-targeting', targeting);
+    el.worldMap.classList.toggle('is-targeting', targeting);
+    if (!targeting || !precisePointer) {
+      el.mapReticle.hidden = true;
+      mapState.reticlePoint = null;
+    }
+    $$('#worldMap .country, #worldMap .country-marker').forEach(node => {
+      if (currentView === 'play' && run?.active) node.setAttribute('aria-label', 'Map location');
+      else {
+        const country = byIso.get(node.dataset.iso);
+        node.setAttribute('aria-label', country?.name || 'Map location');
+      }
+    });
+  }
+
+  function moveMapReticle(clientX, clientY) {
+    if (!precisePointer || !mapAcceptsPointerAnswer() || mapState.dragging || mapState.pinching) {
+      el.mapReticle.hidden = true;
+      return;
+    }
+    const stageRect = el.mapStage.getBoundingClientRect();
+    const mapRect = el.worldMap.getBoundingClientRect();
+    if (clientX < mapRect.left || clientX > mapRect.right || clientY < mapRect.top || clientY > mapRect.bottom) {
+      el.mapReticle.hidden = true;
+      return;
+    }
+    const left = clientX - stageRect.left;
+    const top = clientY - stageRect.top;
+    mapState.reticlePoint = { left, top };
+    el.mapReticle.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+    el.mapReticle.hidden = false;
+  }
+
+  function cancelMapInertia() {
+    if (mapInertiaFrame) cancelAnimationFrame(mapInertiaFrame);
+    mapInertiaFrame = 0;
+    mapState.velocityX = 0;
+    mapState.velocityY = 0;
+  }
+
+  function startMapInertia() {
+    cancelMapInertia();
+    if (reduceMotion || mapState.scale <= 1.001) return;
+    let vx = mapState.velocityX;
+    let vy = mapState.velocityY;
+    if (Math.hypot(vx, vy) < 0.45) return;
+    const step = () => {
+      vx *= 0.89;
+      vy *= 0.89;
+      mapState.tx += vx;
+      mapState.ty += vy;
+      applyMapTransform();
+      if (Math.hypot(vx, vy) > 0.16) mapInertiaFrame = requestAnimationFrame(step);
+      else cancelMapInertia();
+    };
+    mapInertiaFrame = requestAnimationFrame(step);
+  }
+
   function applyMapTransform() {
     clampMapTransform();
-    el.mapViewport.style.transform = `translate(${mapState.tx}px, ${mapState.ty}px) scale(${mapState.scale})`;
-    updateMarkerScale();
+    if (mapTransformFrame) cancelAnimationFrame(mapTransformFrame);
+    mapTransformFrame = requestAnimationFrame(() => {
+      mapTransformFrame = 0;
+      el.mapViewport.style.transform = `translate(${mapState.tx}px, ${mapState.ty}px) scale(${mapState.scale})`;
+      updateMarkerScale();
+      if (el.zoomReadout) el.zoomReadout.textContent = mapState.scale < 10 ? `${mapState.scale.toFixed(1)}×` : `${Math.round(mapState.scale)}×`;
+    });
   }
 
   function clampMapTransform() {
@@ -1263,6 +1444,7 @@
   }
 
   function zoomAt(point, factor) {
+    cancelMapInertia();
     const oldScale = mapState.scale;
     const newScale = Math.min(MAX_MAP_SCALE, Math.max(1, oldScale * factor));
     if (Math.abs(newScale - oldScale) < 0.001) return;
@@ -1293,6 +1475,7 @@
 
   function focusCountry(country, scale = null) {
     if (!country) return;
+    cancelMapInertia();
     const targetScale = scale || (country.micro ? 5.2 : country.area > 1_000_000 ? 2.15 : 3.15);
     mapState.scale = Math.min(MAX_MAP_SCALE, Math.max(1, targetScale));
     mapState.tx = 600 - country.mapX * mapState.scale;
@@ -1300,12 +1483,34 @@
     applyMapTransform();
   }
 
+  function panMapBy(dx, dy) {
+    cancelMapInertia();
+    mapState.tx += dx;
+    mapState.ty += dy;
+    applyMapTransform();
+  }
+
   function initializeMapGestures() {
     el.worldMap.addEventListener('wheel', event => {
       event.preventDefault();
+      cancelMapInertia();
       const point = clientToViewBox(event.clientX, event.clientY);
-      zoomAt(point, event.deltaY < 0 ? 1.18 : 0.84);
+      const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 18 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? 120 : 1;
+      const delta = Math.max(-220, Math.min(220, event.deltaY * unit));
+      const factor = Math.exp(-delta * 0.0022);
+      zoomAt(point, factor);
+      moveMapReticle(event.clientX, event.clientY);
     }, { passive: false });
+
+    el.worldMap.addEventListener('dblclick', event => {
+      const onAnswerTarget = event.target.closest?.('.country, .country-marker');
+      if (run?.active && currentView === 'play' && onAnswerTarget) return;
+      event.preventDefault();
+      zoomAt(clientToViewBox(event.clientX, event.clientY), 1.65);
+    });
+
+    el.worldMap.addEventListener('pointerenter', event => moveMapReticle(event.clientX, event.clientY));
+    el.worldMap.addEventListener('pointerleave', () => { el.mapReticle.hidden = true; });
 
     const capturePointer = pointerId => {
       try {
@@ -1314,6 +1519,8 @@
     };
 
     el.worldMap.addEventListener('pointerdown', event => {
+      cancelMapInertia();
+      el.mapReticle.classList.add('is-pressed');
       mapState.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (mapState.pointers.size === 1) {
         // Do not capture a simple tap. Capturing immediately retargets the click
@@ -1322,6 +1529,9 @@
         mapState.pinching = false;
         mapState.lastPoint = { x: event.clientX, y: event.clientY };
         mapState.moved = 0;
+        mapState.lastMoveAt = performance.now();
+        mapState.velocityX = 0;
+        mapState.velocityY = 0;
       } else if (mapState.pointers.size === 2) {
         mapState.pointers.forEach((_, pointerId) => capturePointer(pointerId));
         mapState.pinching = true;
@@ -1336,6 +1546,7 @@
     });
 
     el.worldMap.addEventListener('pointermove', event => {
+      moveMapReticle(event.clientX, event.clientY);
       if (!mapState.pointers.has(event.pointerId)) return;
       mapState.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
@@ -1371,8 +1582,15 @@
         }
         if (mapState.dragging) {
           const rect = el.worldMap.getBoundingClientRect();
-          mapState.tx += dx * 1200 / rect.width;
-          mapState.ty += dy * 620 / rect.height;
+          const moveX = dx * 1200 / rect.width;
+          const moveY = dy * 620 / rect.height;
+          const now = performance.now();
+          const frameFactor = Math.min(2.5, 16 / Math.max(5, now - mapState.lastMoveAt));
+          mapState.tx += moveX;
+          mapState.ty += moveY;
+          mapState.velocityX = moveX * frameFactor;
+          mapState.velocityY = moveY * frameFactor;
+          mapState.lastMoveAt = now;
           applyMapTransform();
         }
         mapState.lastPoint = { x: event.clientX, y: event.clientY };
@@ -1380,6 +1598,7 @@
     });
 
     const endPointer = event => {
+      el.mapReticle.classList.remove('is-pressed');
       mapState.pointers.delete(event.pointerId);
       if (mapState.moved > 5) mapState.suppressClickUntil = performance.now() + 180;
       if (mapState.pointers.size < 2) {
@@ -1393,10 +1612,13 @@
         capturePointer(pointerId);
         el.worldMap.classList.add('is-dragging');
       } else if (mapState.pointers.size === 0) {
+        const wasDragging = mapState.dragging;
         mapState.dragging = false;
         mapState.lastPoint = null;
         mapState.moved = 0;
         el.worldMap.classList.remove('is-dragging');
+        if (wasDragging) startMapInertia();
+        moveMapReticle(event.clientX, event.clientY);
       }
     };
     el.worldMap.addEventListener('pointerup', endPointer);
@@ -1476,7 +1698,60 @@
     document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => { /* browser or user preference can block it */ });
   }
 
+  function clearCompetitiveCountdown() {
+    countdownHandles.forEach(handle => clearTimeout(handle));
+    countdownHandles = [];
+    el.countdownOverlay.hidden = true;
+    el.body.classList.remove('is-counting-down');
+    el.mapStage.classList.remove('is-counting-down');
+  }
+
+  function setAnswerControlsDisabled(disabled) {
+    el.reverseInput.disabled = disabled;
+    el.spellInput.disabled = disabled;
+    el.countryAnswerSelect.disabled = disabled;
+    el.countryAnswerButton.disabled = disabled;
+  }
+
+  function startCompetitiveCountdown() {
+    if (!run?.isSprint || !run.active) return;
+    clearCompetitiveCountdown();
+    run.ready = false;
+    setAnswerControlsDisabled(true);
+    el.body.classList.add('is-counting-down');
+    el.mapStage.classList.add('is-counting-down');
+    el.countdownOverlay.hidden = false;
+    updateMapInteractionMode();
+    COMPETITIVE_COUNTDOWN_STEPS.forEach((step, index) => {
+      const handle = window.setTimeout(() => {
+        if (!run?.active || !run.isSprint) return;
+        el.countdownValue.textContent = step;
+        el.countdownLabel.textContent = step === 'GO' ? `${modeLabels[run.config.mode]} · timer started` : index === 0 ? 'Get ready' : 'Focus the map';
+        el.countdownOverlay.classList.remove('is-pop');
+        requestAnimationFrame(() => el.countdownOverlay.classList.add('is-pop'));
+        playSound(step === 'GO' ? 'correct' : 'tick');
+        if (step === 'GO') {
+          const now = performance.now();
+          run.gameStart = now;
+          run.questionStart = now;
+          run.ready = true;
+          setAnswerControlsDisabled(false);
+          updateMapInteractionMode();
+          updateRunUI();
+          if (run.currentMode === 'reverse') requestAnimationFrame(() => el.reverseInput.focus());
+          if (run.currentMode === 'spelling' && run.ready !== false) requestAnimationFrame(() => el.spellInput.focus());
+          countdownHandles.push(window.setTimeout(() => {
+            clearCompetitiveCountdown();
+            updateMapInteractionMode();
+          }, 420));
+        }
+      }, index * 620);
+      countdownHandles.push(handle);
+    });
+  }
+
   function startGame(config) {
+    clearCompetitiveCountdown();
     clearTimeout(pendingAutoAdvance);
     pendingAutoAdvance = null;
     if (timerHandle) clearInterval(timerHandle);
@@ -1501,7 +1776,7 @@
     const rng = normalized.sprint
       ? seededRandom(hashString(`atlas-sprint-v${SPRINT_VERSION}-${normalized.mode}`))
       : normalized.seed ? seededRandom(normalized.seed) : Math.random;
-    const shuffled = randomShuffle(pool, rng);
+    const shuffled = pool.length > 1 ? balancedCountryOrder(pool, rng) : [...pool];
     const requestedLength = normalized.pace === 'blitz' ? shuffled.length : normalized.length === 'all' ? shuffled.length : Number(normalized.length);
     const selected = shuffled.slice(0, Math.min(requestedLength, shuffled.length));
     const mixedModes = ['locate', 'capitals', 'flags', 'reverse'];
@@ -1516,6 +1791,7 @@
 
     run = {
       active: true,
+      ready: !normalized.sprint,
       completed: false,
       abandoned: false,
       submitted: false,
@@ -1552,6 +1828,8 @@
     setMissionPanelCollapsed(false);
     el.headerRunPill.hidden = false;
     el.sprintBadge.hidden = !run.isSprint;
+    const existingBest = progress.sprintRecords?.[normalized.mode];
+    if (el.sprintBest) el.sprintBest.textContent = existingBest ? `· Best ${formatRaceTime(existingBest.officialMs)}` : '· Best —';
     el.mapStatusDot.className = 'map-status-dot is-live';
     el.mapToolbarMeta.textContent = `Drag to pan · scroll or pinch to zoom up to ${MAX_MAP_SCALE}×`;
     el.mapCallout.hidden = true;
@@ -1563,6 +1841,8 @@
     timerHandle = window.setInterval(updateTimer, 100);
     if (normalized.mode === 'spelling') startSpellingRound();
     else nextQuestion();
+    updateMapInteractionMode();
+    if (run.isSprint) startCompetitiveCountdown();
     if (window.matchMedia('(max-width: 860px)').matches && run.currentMode !== 'reverse' && run.currentMode !== 'spelling') {
       requestAnimationFrame(() => setMissionPanelCollapsed(true));
     }
@@ -1593,7 +1873,8 @@
     updateMobilePrompt(null, 'spelling');
     setFeedback('Start anywhere. The first country that comes to mind is usually a good one.', 'info');
     updateRunUI();
-    requestAnimationFrame(() => el.spellInput.focus());
+    updateMapInteractionMode();
+    if (run.ready !== false) requestAnimationFrame(() => el.spellInput.focus());
   }
 
   function nextQuestion() {
@@ -1619,6 +1900,7 @@
     if (run.lastMode === 'reverse') fitScope(run.config.scope === 'Weak' || run.config.scope === 'Favorites' ? 'World' : run.config.scope);
     renderQuestion();
     updateRunUI();
+    updateMapInteractionMode();
   }
 
   function renderQuestion() {
@@ -1670,11 +1952,12 @@
       setCountryClass(country.iso2, 'is-target', true);
       focusCountry(country, country.micro ? 7.5 : country.area > 1_000_000 ? 2.15 : 3.2);
       setFeedback(run.isSprint ? 'Type it and press Enter. Incorrect submissions add two seconds.' : 'Shape recognition is harder than it looks. That is why it works.', 'info');
-      window.setTimeout(() => el.reverseInput.focus(), 50);
+      if (run.ready !== false) window.setTimeout(() => el.reverseInput.focus(), 50);
     }
 
     updateMobilePrompt(country, mode);
     el.mapToolbarTitle.textContent = `${run.isSprint ? 'Competitive' : run.config.scope} · ${modeLabels[mode]}`;
+    updateMapInteractionMode();
   }
 
   function refreshMapClasses() {
@@ -1696,7 +1979,7 @@
   }
 
   function submitReverseAnswer() {
-    if (!run?.active || run.currentMode !== 'reverse' || run.transitioning) return;
+    if (!run?.active || run.ready === false || run.currentMode !== 'reverse' || run.transitioning) return;
     const answer = normalizeName(el.reverseInput.value);
     if (!answer) {
       setFeedback('Type a country name first.', 'info');
@@ -1743,7 +2026,7 @@
   }
 
   function submitSpellingAnswer() {
-    if (!run?.active || run.currentMode !== 'spelling') return;
+    if (!run?.active || run.ready === false || run.currentMode !== 'spelling') return;
     const raw = el.spellInput.value;
     const answer = normalizeName(raw);
     if (!answer) return;
@@ -1783,7 +2066,7 @@
   }
 
   function useHint() {
-    if (!run?.active || run.isSprint || run.currentMode === 'spelling' || !run.current || run.transitioning || run.questionHints >= 3) return;
+    if (!run?.active || run.ready === false || run.isSprint || run.currentMode === 'spelling' || !run.current || run.transitioning || run.questionHints >= 3) return;
     run.questionHints += 1;
     run.score = Math.max(0, run.score - 150);
     const country = run.current;
@@ -1829,7 +2112,7 @@
   }
 
   function skipQuestion(reason = 'skip') {
-    if (!run?.active || run.isSprint || run.currentMode === 'spelling' || run.transitioning) return;
+    if (!run?.active || run.ready === false || run.isSprint || run.currentMode === 'spelling' || run.transitioning) return;
     resolveQuestion(false, reason);
   }
 
@@ -1874,9 +2157,14 @@
     recordQuestion(country, solved, clean, elapsed, reason);
     run.history.push({ iso2: country.iso2, mode: run.currentMode, solved, clean, elapsed, mistakes: run.questionMistakes, hints: run.questionHints, reason, points });
     updateRunUI();
+    if (solved) {
+      pulseElement(el.questionStat);
+      pulseElement(run.isSprint ? el.timeStat : el.scoreStat);
+      if (clean && !run.isSprint) pulseElement(el.streakStat);
+    }
     checkAchievements();
 
-    const delay = run.isSprint ? 120 : run.config.pace === 'blitz' ? 330 : solved ? 1050 : 1750;
+    const delay = run.isSprint ? 90 : run.config.pace === 'blitz' ? 230 : solved ? 620 : 1150;
     pendingAutoAdvance = window.setTimeout(() => {
       setCountryClass(country.iso2, 'is-correct', false);
       setCountryClass(country.iso2, 'is-target', false);
@@ -1922,7 +2210,7 @@
   }
 
   function currentRunElapsedMs() {
-    if (!run) return 0;
+    if (!run || run.ready === false) return 0;
     return Math.max(0, performance.now() - run.gameStart);
   }
 
@@ -1980,6 +2268,12 @@
 
   function updateTimer() {
     if (!run?.active || run.paused) return;
+    if (run.ready === false) {
+      el.timeLabel.textContent = run.isSprint ? 'Starts in' : 'Time';
+      el.timeStat.textContent = run.isSprint ? 'Ready' : '0:00';
+      if (run.isSprint) el.headerScore.textContent = '0:00.0';
+      return;
+    }
     const now = performance.now();
     const totalElapsed = (now - run.gameStart) / 1000;
     const questionElapsed = (now - run.questionStart) / 1000;
@@ -2015,8 +2309,48 @@
     }
   }
 
+  function recordRunSummary(reason) {
+    if (!run) return;
+    const mode = run.config.mode;
+    const spelling = mode === 'spelling';
+    const attempts = spelling ? run.solved + run.wrongGuesses : run.history.length;
+    const accuracy = Math.round(run.firstTry / Math.max(1, attempts) * 100);
+    const current = modeStat(mode);
+    progress.modeStats[mode] = {
+      runs: current.runs + 1,
+      competitiveRuns: current.competitiveRuns + (run.isSprint ? 1 : 0),
+      questions: current.questions + attempts,
+      solved: current.solved + run.solved,
+      firstTry: current.firstTry + run.firstTry,
+      mistakes: current.mistakes + run.wrongGuesses,
+      bestScore: Math.max(current.bestScore, Number(run.score) || 0),
+      bestAccuracy: Math.max(current.bestAccuracy, accuracy),
+      bestStreak: Math.max(current.bestStreak, run.bestStreak),
+      lastPlayed: new Date().toISOString()
+    };
+    const completedAt = new Date().toISOString();
+    const summary = {
+      id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      mode,
+      competitive: Boolean(run.isSprint),
+      scope: run.config.scope,
+      reason,
+      questions: attempts,
+      solved: run.solved,
+      accuracy,
+      score: run.score,
+      mistakes: run.wrongGuesses,
+      bestStreak: run.bestStreak,
+      durationMs: Math.round(run.finalDuration * 1000),
+      officialMs: Math.round(run.officialDuration * 1000),
+      completedAt
+    };
+    progress.recentRuns = [summary, ...(progress.recentRuns || [])].slice(0, 12);
+  }
+
   function finishGame(reason) {
     if (!run?.active) return;
+    clearCompetitiveCountdown();
     clearTimeout(pendingAutoAdvance);
     pendingAutoAdvance = null;
     if (timerHandle) clearInterval(timerHandle);
@@ -2025,6 +2359,7 @@
     run.completed = true;
     run.finalDuration = Math.max(0, (performance.now() - run.gameStart) / 1000);
     run.officialDuration = run.finalDuration + (run.isSprint ? run.wrongGuesses * SPRINT_PENALTY_SECONDS : 0);
+    recordRunSummary(reason);
     progress.games += 1;
     progress.bestStreak = Math.max(progress.bestStreak, run.bestStreak);
     if (run.history.length >= 10 && run.firstTry === run.history.length) unlockAchievement('clean_sweep');
@@ -2034,6 +2369,7 @@
     el.headerRunPill.hidden = true;
     el.sprintBadge.hidden = true;
     el.mapStatusDot.className = 'map-status-dot';
+    updateMapInteractionMode();
     el.roundProgress.style.width = '100%';
     el.footerProgressText.textContent = reason === 'blitz' ? 'Blitz complete' : 'Round complete';
     renderResults(reason);
@@ -2104,6 +2440,13 @@
     el.practiceMissedButton.disabled = missed.length === 0;
     el.resultsDialog.showModal();
     if (run.isSprint || firstTryAccuracy >= 80) burstConfetti(run.isSprint && run.wrongGuesses === 0 ? 160 : firstTryAccuracy === 100 ? 140 : 80);
+  }
+
+  function pulseElement(node) {
+    if (!node || reduceMotion) return;
+    node.classList.remove('is-pulsing');
+    requestAnimationFrame(() => node.classList.add('is-pulsing'));
+    window.setTimeout(() => node.classList.remove('is-pulsing'), 420);
   }
 
   function setFeedback(message, type = 'info') {
@@ -2203,7 +2546,7 @@
         el.mapToolbarTitle.textContent = `${run.isSprint ? 'Competitive' : run.config.scope} · ${modeLabels[run.currentMode]}`;
         updateRunUI();
         if (run.currentMode === 'reverse') focusCountry(run.current, run.current.micro ? 7.5 : 3.2);
-        if (run.currentMode === 'spelling') requestAnimationFrame(() => el.spellInput.focus());
+        if (run.currentMode === 'spelling' && run.ready !== false) requestAnimationFrame(() => el.spellInput.focus());
       } else {
         el.mapToolbarTitle.textContent = 'World map';
         el.footerProgressText.textContent = 'No active round';
@@ -2213,6 +2556,7 @@
       }
     }
     refreshMapClasses();
+    updateMapInteractionMode();
   }
 
   function selectStudyCountry(iso2, focus = false) {
@@ -2296,6 +2640,27 @@
       ? `${seen} countries have appeared. Mastery rewards repeated first-try recall, not a single lucky click.`
       : 'Start a round and the map will learn where you need repetition.';
 
+    const modeOrder = ['locate', 'capitals', 'flags', 'reverse', 'mixed', 'spelling'];
+    if (el.modeProgressGrid) {
+      el.modeProgressGrid.innerHTML = modeOrder.map(mode => {
+        const stat = modeStat(mode);
+        const accuracy = stat.questions ? Math.round(stat.firstTry / stat.questions * 100) : null;
+        const best = progress.sprintRecords?.[mode];
+        return `<article class="mode-progress-card"><div class="mode-progress-head"><strong>${escapeHtml(modeLabels[mode])}</strong><button type="button" data-mode-practice="${mode}">Play</button></div><div class="mode-progress-values"><span><b>${formatNumber(stat.runs)}</b><small>games</small></span><span><b>${accuracy === null ? '—' : `${accuracy}%`}</b><small>accuracy</small></span><span><b>${best ? formatRaceTime(best.officialMs) : '—'}</b><small>best time</small></span></div></article>`;
+      }).join('');
+    }
+
+    if (el.recentRuns) {
+      const recent = Array.isArray(progress.recentRuns) ? progress.recentRuns.slice(0, 8) : [];
+      el.recentRuns.innerHTML = recent.length ? recent.map(item => {
+        const when = new Date(item.completedAt);
+        const date = Number.isNaN(when.valueOf()) ? '' : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(when);
+        const headline = item.competitive ? formatRaceTime(item.officialMs) : item.mode === 'spelling' ? `${item.solved}/${countries.length}` : `${item.accuracy}%`;
+        const detail = item.competitive ? `${item.mistakes} mistake${item.mistakes === 1 ? '' : 's'}` : `${item.solved} solved · ${formatTime(item.durationMs / 1000)}`;
+        return `<div class="recent-run"><span class="recent-run-mode">${escapeHtml(modeLabels[item.mode] || item.mode)}</span><div><strong>${headline}</strong><small>${escapeHtml(detail)}</small></div><time datetime="${escapeHtml(item.completedAt || '')}">${escapeHtml(date)}</time></div>`;
+      }).join('') : '<div class="empty-state">Your latest completed games will appear here.</div>';
+    }
+
     const weak = weakCountries().slice(0, 8);
     el.weakList.innerHTML = weak.length
       ? weak.map(item => `<div class="weak-item"><span class="flag">${flagMarkup(item.country, 'flag-art-inline')}</span><div><strong>${escapeHtml(item.country.name)}</strong><small>${item.mastery}% mastery · ${item.record.misses} miss${item.record.misses === 1 ? '' : 'es'}</small></div><button type="button" data-practice-iso="${item.country.iso2}">Practice</button></div>`).join('')
@@ -2378,12 +2743,14 @@
     if (settings.muted) return;
     try {
       audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+      if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
       const now = audioContext.currentTime;
       const patterns = {
         correct: [[523.25, 0, .08], [659.25, .08, .11]],
         wrong: [[180, 0, .13]],
         reveal: [[260, 0, .07], [220, .07, .1]],
-        achievement: [[523.25, 0, .08], [659.25, .08, .08], [783.99, .16, .14]]
+        achievement: [[523.25, 0, .08], [659.25, .08, .08], [783.99, .16, .14]],
+        tick: [[392, 0, .055]]
       };
       (patterns[type] || patterns.correct).forEach(([frequency, offset, duration]) => {
         const oscillator = audioContext.createOscillator();
@@ -2478,7 +2845,7 @@
     const payload = {
       exportedAt: new Date().toISOString(),
       app: 'Atlas Arcade',
-      version: 1,
+      version: 3,
       progress
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -2668,6 +3035,12 @@
       if (!button) return;
       startGame({ mode: 'mixed', scope: 'World', difficulty: 3, length: '10', pace: 'relaxed', sprint: false, customPoolCodes: [button.dataset.practiceIso] });
     });
+    el.modeProgressGrid?.addEventListener('click', event => {
+      const button = event.target.closest('[data-mode-practice]');
+      if (!button) return;
+      if (el.statsDialog.open) el.statsDialog.close();
+      openSetup({ mode: button.dataset.modePractice });
+    });
     el.exportStatsButton.addEventListener('click', exportProgress);
     el.resetStatsButton.addEventListener('click', resetProgress);
     el.studySearchForm.addEventListener('submit', event => { event.preventDefault(); findStudyCountry(el.studySearch.value); });
@@ -2707,6 +3080,13 @@
       } else if (event.key === '0' && !typing) {
         event.preventDefault();
         fitScope(currentView === 'study' ? studyContinent : run?.config.scope || 'World');
+      } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && !typing) {
+        event.preventDefault();
+        const amount = event.shiftKey ? 96 : 48;
+        if (event.key === 'ArrowUp') panMapBy(0, amount);
+        if (event.key === 'ArrowDown') panMapBy(0, -amount);
+        if (event.key === 'ArrowLeft') panMapBy(amount, 0);
+        if (event.key === 'ArrowRight') panMapBy(-amount, 0);
       } else if (event.key.toLowerCase() === 'm' && !typing) {
         event.preventDefault();
         toggleSound();
@@ -2743,16 +3123,51 @@
     updateAccountUI();
   }
 
+  function initializeInstallPrompt() {
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (standalone) return;
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      el.installButton.hidden = false;
+    });
+    el.installButton?.addEventListener('click', async () => {
+      if (!deferredInstallPrompt) {
+        toast('Use your browser menu and choose “Install app” or “Add to Home Screen.”');
+        return;
+      }
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice.catch(() => null);
+      deferredInstallPrompt = null;
+      el.installButton.hidden = true;
+    });
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      el.installButton.hidden = true;
+      toast('Atlas Arcade installed. It now opens like an app.');
+    });
+  }
+
   function registerServiceWorker() {
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('./service-worker.js').catch(() => { /* local servers can block SW */ });
-    }
+    if (!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
+    navigator.serviceWorker.register('./service-worker.js').then(registration => {
+      registration.addEventListener('updatefound', () => {
+        const worker = registration.installing;
+        if (!worker) return;
+        worker.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller && !(run?.active && currentView === 'play')) {
+            toast('A newer Atlas Arcade build is ready. Reload whenever you are finished.');
+          }
+        });
+      });
+    }).catch(() => { /* local servers can block SW */ });
   }
 
   renderMap();
   initializeMapGestures();
   initializeEvents();
   initializeAppearance();
+  initializeInstallPrompt();
   refreshMapClasses();
   fitScope('World');
   registerServiceWorker();
