@@ -25,7 +25,9 @@ const runtimeFiles = [
   'manifest.webmanifest',
   'service-worker.js',
   '_headers',
-  'robots.txt'
+  'robots.txt',
+'sitemap.xml',
+'google3b49889855a5e608.html'
 ];
 
 const runtimeDirectories = [
