@@ -1,0 +1,534 @@
+<!doctype html>
+
+<html data-theme="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
+<meta content="#08111f" name="theme-color"/>
+<meta content="Atlas Arcade is a polished world geography game with country, capital, flag, map-name, mixed and spell-all modes, plus optional fastest-time leaderboards for every mode." name="description"/>
+<meta content="Atlas Arcade — Master the World Map" property="og:title"/>
+<meta content="Locate, identify and spell every country. Play casually or compare your fastest complete times in any game mode." property="og:description"/>
+<meta content="assets/social-preview.png" property="og:image"/>
+<title>Atlas Arcade — Master the World Map</title>
+<link href="assets/icon.svg" rel="icon" type="image/svg+xml"/>
+<link href="manifest.webmanifest" rel="manifest"/>
+<link href="styles.css" rel="stylesheet"/>
+</head>
+<body>
+<a class="skip-link" href="#missionPanel">Skip to the current mission</a>
+<div aria-hidden="true" class="ambient ambient-one"></div>
+<div aria-hidden="true" class="ambient ambient-two"></div>
+<header class="topbar">
+<button aria-label="Open game setup" class="brand" id="brandButton" type="button">
+<span aria-hidden="true" class="brand-mark">
+<svg role="img" viewbox="0 0 48 48">
+<circle cx="24" cy="24" r="19"></circle>
+<path d="M5 24h38M24 5c6 5 9 11 9 19s-3 14-9 19M24 5c-6 5-9 11-9 19s3 14 9 19M9 14c4 3 9 4 15 4s11-1 15-4M9 34c4-3 9-4 15-4s11 1 15 4"></path>
+</svg>
+</span>
+<span>
+<strong>Atlas Arcade</strong>
+<small>World map trainer</small>
+</span>
+</button>
+<nav aria-label="Main navigation" class="primary-nav">
+<button class="nav-button is-active" data-view="play" id="playNav" type="button">Play</button>
+<button class="nav-button" data-view="study" id="studyNav" type="button">Study</button>
+<button class="nav-button" id="leaderboardNav" type="button">Times</button><button class="nav-button" id="statsNav" type="button">Progress</button>
+</nav>
+<div class="top-actions">
+<span class="run-pill" hidden="" id="headerRunPill">
+<span id="headerMode">Locate</span>
+<strong id="headerScore">0</strong>
+</span>
+<button aria-label="Open account" class="account-button" hidden="" id="accountButton" title="Account" type="button">
+<svg aria-hidden="true" viewbox="0 0 24 24"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"></path></svg><span id="accountButtonLabel">Sign in</span></button><button aria-label="Mute sound" class="icon-button" id="soundToggle" title="Sound (M)" type="button">
+<svg aria-hidden="true" class="icon-sound-on" viewbox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z"></path><path d="M16 9.5c1.4 1.4 1.4 3.6 0 5M18.5 7c2.8 2.8 2.8 7.2 0 10"></path></svg>
+<svg aria-hidden="true" class="icon-sound-off" viewbox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z"></path><path d="m17 10 5 5m0-5-5 5"></path></svg>
+</button>
+<button aria-label="Switch to light theme" class="icon-button" id="themeToggle" title="Theme" type="button">
+<svg aria-hidden="true" class="icon-moon" viewbox="0 0 24 24"><path d="M20 15.5A8 8 0 0 1 8.5 4 8 8 0 1 0 20 15.5Z"></path></svg>
+<svg aria-hidden="true" class="icon-sun" viewbox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+</button>
+<button aria-label="Enter fullscreen" class="icon-button desktop-only" id="fullscreenToggle" title="Fullscreen" type="button">
+<svg aria-hidden="true" viewbox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5m13 5h5v-5"></path></svg>
+</button>
+<button aria-label="Open keyboard help" class="icon-button" id="helpButton" title="Help (?)" type="button">
+<svg aria-hidden="true" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9.8 9a2.4 2.4 0 1 1 3.5 2.1c-.9.5-1.3 1-1.3 2M12 17h.01"></path></svg>
+</button>
+</div>
+</header>
+<main class="app-shell" id="app">
+<section aria-label="Atlas Arcade game" class="game-layout">
+<aside class="mission-panel glass-card" id="missionPanel">
+<section id="gamePanel">
+<div class="mission-topline">
+<span class="eyebrow-chip" id="modeChip">Locate</span>
+<div class="mission-top-actions"><button class="text-button" id="newGameButton" type="button">New game</button><button aria-label="Collapse game panel" aria-expanded="true" class="panel-toggle" id="missionCollapseButton" title="Collapse game panel" type="button">‹</button></div>
+</div><div class="sprint-badge" hidden="" id="sprintBadge"><span aria-hidden="true">◷</span><p><strong>Competitive</strong><small>197 countries · +2 seconds per mistake</small></p></div>
+<div aria-label="Current game statistics" class="score-grid">
+<div><span id="questionLabel">Question</span><strong id="questionStat">0 / 0</strong></div>
+<div><span id="scoreLabel">Score</span><strong id="scoreStat">0</strong></div>
+<div><span id="streakLabel">Streak</span><strong id="streakStat">0</strong></div>
+<div><span id="timeLabel">Time</span><strong id="timeStat">0:00</strong></div>
+</div>
+<div class="mission-copy">
+<p class="mission-kicker" id="promptLead">Ready for takeoff?</p>
+<div aria-hidden="true" class="flag-prompt" id="flagPrompt"></div>
+<h1 id="promptText">Choose a mode and start exploring.</h1>
+<p id="promptMeta">Countries, capitals, flags, weak-spot practice and a genuinely useful study map.</p>
+</div>
+<form autocomplete="off" class="reverse-form" hidden="" id="reverseForm">
+<label for="reverseInput">Type the highlighted country</label>
+<div class="input-row">
+<input autocapitalize="words" id="reverseInput" name="answer" placeholder="Country name" spellcheck="false" type="text"/>
+<button class="primary-button compact" type="submit">Check</button>
+</div>
+</form><form autocomplete="off" class="spell-form" hidden="" id="spellForm">
+<label for="spellInput">Type a country</label>
+<div class="input-row">
+<input autocapitalize="words" autocomplete="off" id="spellInput" name="country" placeholder="Start with any country…" spellcheck="false" type="text"/>
+<button class="primary-button compact" type="submit">Add</button>
+</div>
+<div class="spell-progress-row"><span id="spellCount">0 of 197 named</span><strong id="spellRemaining">197 left</strong></div>
+<div aria-hidden="true" class="meter large"><span id="spellMeter"></span></div>
+<div aria-live="polite" class="spell-recent" id="spellRecent"></div>
+</form>
+<details class="keyboard-answer" id="keyboardAnswer">
+<summary>Use a country list instead of the map</summary>
+<div class="input-row">
+<label class="sr-only" for="countryAnswerSelect">Choose a country</label>
+<select id="countryAnswerSelect"></select>
+<button class="secondary-button compact" id="countryAnswerButton" type="button">Choose</button>
+</div>
+</details>
+<div class="mission-actions">
+<button class="secondary-button" id="hintButton" type="button">
+<span aria-hidden="true">✦</span> Hint <small id="hintCost">−150</small>
+</button>
+<button class="ghost-button" id="skipButton" type="button">Skip</button>
+</div>
+<div class="hint-box" hidden="" id="hintBox">
+<strong>Field note</strong>
+<p id="hintText"></p>
+</div>
+<div aria-live="polite" class="feedback" id="feedback" role="status">
+<span aria-hidden="true" class="feedback-icon"></span>
+<p id="feedbackText">The map is yours.</p>
+</div>
+<div class="accuracy-row">
+<span>Run accuracy</span>
+<div aria-hidden="true" class="meter"><span id="accuracyMeter"></span></div>
+<strong id="accuracyStat">—</strong>
+</div>
+<article class="country-card" hidden="" id="lastCountryCard">
+<div class="country-card-head">
+<span aria-hidden="true" class="country-flag" id="lastFlag"></span>
+<div>
+<p>Last discovery</p>
+<h2 id="lastCountryName"></h2>
+</div>
+</div>
+<dl class="country-facts">
+<div><dt>Capital</dt><dd id="lastCapital"></dd></div>
+<div><dt>Region</dt><dd id="lastRegion"></dd></div>
+<div><dt>Area</dt><dd id="lastArea"></dd></div>
+<div><dt>Neighbors</dt><dd id="lastNeighbors"></dd></div>
+</dl>
+<p class="capital-note" hidden="" id="lastCapitalNote"></p>
+</article>
+</section>
+<section class="study-panel" hidden="" id="studyPanel">
+<div class="mission-topline">
+<span class="eyebrow-chip">Study map</span>
+<button class="text-button" id="randomCountryButton" type="button">Surprise me</button>
+</div>
+<div class="study-intro">
+<h1>Slow down and inspect the planet.</h1>
+<p>Search, hover or tap any country. Your personal mastery score is stored only in this browser.</p>
+</div>
+<form class="study-search" id="studySearchForm">
+<label for="studySearch">Find a country</label>
+<div class="input-row">
+<input id="studySearch" list="countryDatalist" placeholder="Try Kyrgyzstan…" spellcheck="false"/>
+<datalist id="countryDatalist"></datalist>
+<button class="primary-button compact" type="submit">Find</button>
+</div>
+</form>
+<div aria-label="Filter study map by continent" class="filter-pills" id="studyFilters">
+<button class="is-active" data-continent="World" type="button">World</button>
+<button data-continent="Africa" type="button">Africa</button>
+<button data-continent="Americas" type="button">Americas</button>
+<button data-continent="Asia" type="button">Asia</button>
+<button data-continent="Europe" type="button">Europe</button>
+<button data-continent="Oceania" type="button">Oceania</button>
+</div>
+<article class="study-country" id="studyCountryCard">
+<div class="study-placeholder" id="studyPlaceholder">
+<span aria-hidden="true">◎</span>
+<p>Pick a country on the map to open its field guide.</p>
+</div>
+<div hidden="" id="studyDetails">
+<div class="study-country-head">
+<span aria-hidden="true" class="study-flag" id="studyFlag"></span>
+<div>
+<p id="studySubregion"></p>
+<h2 id="studyName"></h2>
+</div>
+<button aria-label="Add country to favorites" class="star-button" id="favoriteButton" title="Favorite" type="button">☆</button>
+</div>
+<dl class="study-facts">
+<div><dt>Capital</dt><dd id="studyCapital"></dd></div>
+<div><dt>Area</dt><dd id="studyArea"></dd></div>
+<div><dt>Geography</dt><dd id="studyGeography"></dd></div>
+<div><dt>Borders</dt><dd id="studyBorders"></dd></div>
+</dl>
+<div class="mastery-block">
+<div><span>Your mastery</span><strong id="studyMasteryLabel">Unseen</strong></div>
+<div class="meter large"><span id="studyMasteryMeter"></span></div>
+<p id="studyMasteryText">Play a quiz to start building a memory record for this country.</p>
+</div>
+<p class="capital-note" hidden="" id="studyCapitalNote"></p>
+<div class="study-actions">
+<button class="primary-button" id="practiceRegionButton" type="button">Quiz this region</button>
+<button class="secondary-button" id="focusCountryButton" type="button">Center map</button>
+</div>
+</div>
+</article>
+</section>
+</aside>
+<section aria-label="Interactive world map" class="map-card glass-card">
+<div class="map-toolbar">
+<div>
+<span class="map-status-dot" id="mapStatusDot"></span>
+<strong id="mapToolbarTitle">World map</strong>
+<small id="mapToolbarMeta">Drag to pan · scroll or pinch to zoom</small>
+</div>
+<div aria-label="Map controls" class="map-tools">
+<button aria-label="Zoom out" class="map-tool" id="zoomOutButton" title="Zoom out (−)" type="button">−</button>
+<button aria-label="Reset map" class="map-tool" id="resetMapButton" title="Reset map (0)" type="button">◎</button>
+<button aria-label="Zoom in" class="map-tool" id="zoomInButton" title="Zoom in (+)" type="button">+</button>
+</div>
+</div>
+<div class="map-stage" id="mapStage">
+<button aria-label="Open the question panel" aria-expanded="false" class="mobile-current-prompt" id="mobilePromptButton" type="button">
+<span aria-hidden="true" class="mobile-prompt-flag" hidden="" id="mobilePromptFlag"></span>
+<span><small id="mobilePromptLead">Current question</small><strong id="mobilePromptText">Ready</strong><em id="mobilePromptMeta">Tap to open controls</em></span>
+<span aria-hidden="true" class="mobile-prompt-arrow">›</span>
+</button>
+<svg aria-label="Interactive map of the world" id="worldMap" role="application" tabindex="0" viewbox="0 0 1200 620">
+<defs>
+<lineargradient id="oceanGradient" x1="0" x2="1" y1="0" y2="1">
+<stop class="ocean-stop-one" offset="0"></stop>
+<stop class="ocean-stop-two" offset="1"></stop>
+</lineargradient>
+<filter height="200%" id="countryGlow" width="200%" x="-50%" y="-50%">
+<fegaussianblur result="blur" stddeviation="3"></fegaussianblur>
+<femerge><femergenode in="blur"></femergenode><femergenode in="SourceGraphic"></femergenode></femerge>
+</filter>
+</defs>
+<rect class="ocean" height="620" rx="26" width="1200" x="0" y="0"></rect>
+<g id="mapViewport">
+<g aria-hidden="true" id="graticuleLayer"></g>
+<g aria-hidden="true" id="territoryLayer"></g>
+<g id="countryLayer"></g>
+<g id="markerLayer"></g>
+</g>
+</svg>
+<div class="map-tooltip" hidden="" id="mapTooltip" role="tooltip"></div>
+<div class="map-callout" hidden="" id="mapCallout">
+<span aria-hidden="true" id="calloutFlag"></span>
+<div><strong id="calloutName"></strong><small id="calloutMeta"></small></div>
+</div>
+<div class="tiny-country-note" hidden="" id="tinyCountryNote">
+<span aria-hidden="true">•</span> Tiny countries use locator dots with generous tap targets.
+          </div>
+<div aria-label="Map legend" class="map-legend">
+<span><i class="legend-current"></i> Current</span>
+<span><i class="legend-correct"></i> Solved</span>
+<span><i class="legend-marker"></i> Tiny country</span>
+</div>
+</div>
+<div class="map-footer">
+<div aria-label="Round progress" class="progress-track">
+<span id="roundProgress"></span>
+</div>
+<div class="footer-copy">
+<span id="footerProgressText">No active round</span>
+<button class="text-button" id="fitScopeButton" type="button">Fit scope</button>
+</div>
+</div>
+</section>
+</section>
+</main>
+<dialog aria-labelledby="setupTitle" class="modal setup-modal" id="setupDialog">
+<form id="setupForm" method="dialog">
+<div class="setup-page-bar">
+<div class="setup-page-brand">
+<span aria-hidden="true" class="brand-mark">
+<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19"></circle><path d="M5 24h38M24 5c6 5 9 11 9 19s-3 14-9 19M24 5c-6 5-9 11-9 19s3 14 9 19M9 14c4 3 9 4 15 4s11-1 15-4M9 34c4-3 9-4 15-4s11 1 15 4"></path></svg>
+</span>
+<span><strong>Atlas Arcade</strong><small>World map trainer</small></span>
+</div>
+<p>Six game modes · 197 countries</p>
+</div>
+<div class="modal-head">
+<div>
+<p class="modal-eyebrow">Choose a game</p>
+<h2 id="setupTitle">How do you want to explore?</h2>
+<p>Pick a mode, choose a round, and start. Competitive is optional.</p>
+</div>
+<button aria-label="Close setup" class="modal-close" type="submit" value="cancel">×</button>
+</div>
+<fieldset>
+<legend>Game mode</legend>
+<div class="mode-grid">
+<label class="mode-card">
+<input checked="" name="mode" type="radio" value="locate"/>
+<span class="mode-symbol">⌖</span>
+<strong>Locate</strong>
+<small>See a country name, click its place.</small>
+</label>
+<label class="mode-card">
+<input name="mode" type="radio" value="capitals"/>
+<span class="mode-symbol">◉</span>
+<strong>Capitals</strong>
+<small>See a capital, find its country.</small>
+</label>
+<label class="mode-card">
+<input name="mode" type="radio" value="flags"/>
+<span class="mode-symbol">⚑</span>
+<strong>Flags</strong>
+<small>Decode the flag, then locate it.</small>
+</label>
+<label class="mode-card">
+<input name="mode" type="radio" value="reverse"/>
+<span class="mode-symbol">Aa</span>
+<strong>Map → Name</strong>
+<small>See a highlighted shape, type the name.</small>
+</label>
+<label class="mode-card featured-mode">
+<input name="mode" type="radio" value="mixed"/>
+<span class="mode-symbol">✦</span>
+<strong>Mixed Mission</strong>
+<small>Names, flags, capitals and reverse recall.</small>
+</label>
+<label class="mode-card spelling-mode">
+<input name="mode" type="radio" value="spelling"/>
+<span class="mode-symbol">Ab</span>
+<strong>Spell All</strong>
+<small>Name all 197 countries in any order.</small>
+</label></div>
+</fieldset>
+<div class="setup-columns">
+<fieldset>
+<legend>Map scope</legend>
+<div class="segmented wrap" id="scopeOptions">
+<label><input checked="" name="scope" type="radio" value="World"/><span>World</span></label>
+<label><input name="scope" type="radio" value="Africa"/><span>Africa</span></label>
+<label><input name="scope" type="radio" value="Americas"/><span>Americas</span></label>
+<label><input name="scope" type="radio" value="Asia"/><span>Asia</span></label>
+<label><input name="scope" type="radio" value="Europe"/><span>Europe</span></label>
+<label><input name="scope" type="radio" value="Oceania"/><span>Oceania</span></label>
+<label><input name="scope" type="radio" value="Weak"/><span>Weak spots</span></label>
+<label><input name="scope" type="radio" value="Favorites"/><span>Favorites</span></label>
+</div>
+</fieldset>
+<fieldset>
+<legend>Difficulty</legend>
+<div class="segmented stacked">
+<label><input name="difficulty" type="radio" value="1"/><span><strong>Explorer</strong><small>Large and familiar countries</small></span></label>
+<label><input checked="" name="difficulty" type="radio" value="2"/><span><strong>Navigator</strong><small>Most countries, fewer microstates</small></span></label>
+<label><input name="difficulty" type="radio" value="3"/><span><strong>Cartographer</strong><small>Every last island and microstate</small></span></label>
+</div>
+</fieldset>
+</div>
+<div class="setup-columns three">
+<fieldset>
+<legend>Round length</legend>
+<div class="segmented">
+<label><input checked="" name="length" type="radio" value="10"/><span>10</span></label>
+<label><input name="length" type="radio" value="25"/><span>25</span></label>
+<label><input name="length" type="radio" value="all"/><span>All</span></label>
+</div>
+</fieldset>
+<fieldset>
+<legend>Pace</legend>
+<div class="segmented">
+<label><input checked="" name="pace" type="radio" value="relaxed"/><span>Relaxed</span></label>
+<label><input name="pace" type="radio" value="20"/><span>20s</span></label>
+<label><input name="pace" type="radio" value="10"/><span>10s</span></label>
+<label><input name="pace" type="radio" value="blitz"/><span>60s blitz</span></label>
+</div>
+</fieldset>
+<fieldset>
+<legend>Country set</legend>
+<div class="set-note"><strong>Extended 197</strong><small>193 UN members + Palestine, Vatican City, Kosovo and Taiwan.</small></div>
+</fieldset>
+</div>
+<p class="setup-lock-note" hidden="" id="setupLockNote"></p><div class="setup-footer">
+
+<label class="sprint-choice" id="sprintChoice">
+<input id="sprintInput" name="sprint" type="checkbox" value="true"/>
+<span aria-hidden="true" class="sprint-choice-mark">◷</span>
+<span><strong>Competitive</strong><small>Optional. A standardized 197-country run for this mode’s fastest-times board.</small></span>
+</label><button class="primary-button large" id="startGameButton" type="submit" value="default">Start Game</button>
+</div>
+</form>
+</dialog>
+<dialog aria-labelledby="resultsTitle" class="modal results-modal" id="resultsDialog">
+<div aria-hidden="true" class="results-burst">✦</div>
+<div class="modal-head">
+<div>
+<p class="modal-eyebrow" id="resultsEyebrow">Expedition complete</p>
+<h2 id="resultsTitle">That map is starting to stick.</h2>
+<p id="resultsSummary"></p>
+</div>
+<button aria-label="Close results" class="modal-close" id="resultsClose" type="button">×</button>
+</div>
+<div class="results-grid">
+<div><span id="resultScoreLabel">Score</span><strong id="resultScore">0</strong></div>
+<div><span id="resultAccuracyLabel">First-try accuracy</span><strong id="resultAccuracy">0%</strong></div>
+<div><span id="resultStreakLabel">Best streak</span><strong id="resultStreak">0</strong></div>
+<div><span id="resultTimeLabel">Time</span><strong id="resultTime">0:00</strong></div>
+</div>
+<div class="rank-card">
+<div><span>Result</span><strong id="resultRank">Explorer</strong></div>
+<p id="resultRankCopy"></p>
+</div><section class="sprint-result-card" hidden="" id="sprintResultCard">
+<div class="sprint-result-head"><div><span>Final time</span><strong id="sprintOfficialTime">0:00</strong></div><span class="sprint-result-mode" id="sprintResultMode">Locate</span></div>
+<div class="sprint-result-stats"><div><span>Raw time</span><strong id="sprintRawTime">0:00</strong></div><div><span>Mistakes</span><strong id="sprintMistakes">0</strong></div><div><span>Penalty</span><strong id="sprintPenalty">+0s</strong></div></div>
+<p aria-live="polite" class="submission-status" id="sprintSubmissionStatus" role="status"></p>
+</section>
+<section class="missed-section" id="missedSection">
+<div><h3>Worth another look</h3><span id="missedCount"></span></div>
+<div class="chip-list" id="missedList"></div>
+</section>
+<div class="results-actions">
+<button class="primary-button" id="playAgainButton" type="button">Play again</button>
+<button class="secondary-button" id="practiceMissedButton" type="button">Practice misses</button>
+<button class="secondary-button" id="viewLeaderboardButton" type="button">View Times</button>
+<button class="secondary-button" id="shareResultButton" type="button">Copy Result</button>
+<button class="ghost-button" id="studyResultsButton" type="button">Open Study Map</button>
+</div>
+</dialog>
+<dialog aria-labelledby="leaderboardTitle" class="modal leaderboard-modal" id="leaderboardDialog">
+<div class="modal-head">
+<div><p class="modal-eyebrow">Optional timed play</p><h2 id="leaderboardTitle">Fastest Times</h2><p>Each game mode has its own board. Competitive games use all 197 countries, the same mode-specific order, and a two-second mistake penalty.</p></div>
+<button aria-label="Close leaderboards" class="modal-close" id="leaderboardClose" type="button">×</button>
+</div>
+<div aria-label="Leaderboard game mode" class="leaderboard-mode-tabs" id="leaderboardModeTabs" role="tablist">
+<button aria-selected="true" class="is-active" data-mode="locate" role="tab" type="button">Locate</button>
+<button aria-selected="false" data-mode="capitals" role="tab" type="button">Capitals</button>
+<button aria-selected="false" data-mode="flags" role="tab" type="button">Flags</button>
+<button aria-selected="false" data-mode="reverse" role="tab" type="button">Map → Name</button>
+<button aria-selected="false" data-mode="mixed" role="tab" type="button">Mixed</button>
+<button aria-selected="false" data-mode="spelling" role="tab" type="button">Spell All</button>
+</div>
+<div class="leaderboard-controls">
+<label for="playerNameInput"><span>Leaderboard name</span><input autocomplete="nickname" id="playerNameInput" maxlength="24" placeholder="Explorer name" type="text"/></label>
+<button class="secondary-button compact" id="savePlayerNameButton" type="button">Save Name</button>
+<button class="primary-button compact" id="startSprintButton" type="button">Start Competitive Game</button>
+<button class="ghost-button compact" id="refreshLeaderboardButton" type="button">Refresh</button>
+</div>
+<p aria-live="polite" class="leaderboard-status" id="leaderboardStatus" role="status">Loading records…</p>
+<div class="leaderboard-table-wrap">
+<table class="leaderboard-table">
+<thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">Final</th><th scope="col">Raw</th><th scope="col">Mistakes</th><th scope="col">Date</th></tr></thead>
+<tbody id="leaderboardRows"></tbody>
+</table>
+</div>
+<div class="leaderboard-foot"><span id="leaderboardScopeLabel">Times on this device</span><span>One fastest completed time per player and mode</span></div>
+</dialog><dialog aria-labelledby="accountTitle" class="modal account-modal" id="accountDialog">
+<div class="modal-head">
+<div><p class="modal-eyebrow">Atlas account</p><h2 id="accountTitle">Keep your progress with you.</h2><p>Accounts are optional. Sign in to sync progress and keep one leaderboard identity across devices.</p></div>
+<button aria-label="Close account" class="modal-close" id="accountClose" type="button">×</button>
+</div>
+<section class="account-guest" id="accountGuestView">
+<div aria-label="Account action" class="account-tabs" id="accountTabs" role="tablist">
+<button aria-selected="true" class="is-active" data-account-tab="signin" role="tab" type="button">Sign in</button>
+<button aria-selected="false" data-account-tab="create" role="tab" type="button">Create account</button>
+</div>
+<form class="account-form" id="accountSignInForm">
+<label for="accountSignInEmail">Email</label><input autocomplete="email" id="accountSignInEmail" placeholder="you@example.com" required="" type="email"/>
+<label for="accountSignInPassword">Password</label><input autocomplete="current-password" id="accountSignInPassword" minlength="8" placeholder="At least 8 characters" required="" type="password"/>
+<button class="primary-button" type="submit">Sign in</button><button class="text-button account-reset-link" id="accountForgotButton" type="button">Forgot your password?</button>
+</form>
+<form class="account-form" hidden="" id="accountCreateForm">
+<label for="accountCreateName">Display name</label><input autocomplete="nickname" id="accountCreateName" maxlength="24" placeholder="Explorer name" required="" type="text"/>
+<label for="accountCreateEmail">Email</label><input autocomplete="email" id="accountCreateEmail" placeholder="you@example.com" required="" type="email"/>
+<label for="accountCreatePassword">Password</label><input autocomplete="new-password" id="accountCreatePassword" minlength="8" placeholder="At least 8 characters" required="" type="password"/>
+<button class="primary-button" type="submit">Create account</button><p class="account-fine-print">Guest play always remains available.</p>
+</form>
+</section>
+<section class="account-member" hidden="" id="accountMemberView">
+<div class="account-identity"><span aria-hidden="true">◎</span><div><small>Signed in as</small><strong id="accountEmail">—</strong></div></div>
+<label for="accountDisplayName">Leaderboard name</label><div class="input-row"><input autocomplete="nickname" id="accountDisplayName" maxlength="24" type="text"/><button class="secondary-button compact" id="accountSaveNameButton" type="button">Save</button></div>
+<div class="account-sync-card"><div><span aria-hidden="true" class="account-sync-dot" id="accountSyncDot"></span><strong>Cloud progress</strong></div><p id="accountSyncStatus">Checking your save…</p></div>
+<form class="account-form account-recovery-form" hidden="" id="accountRecoveryForm"><label for="accountNewPassword">Choose a new password</label><input autocomplete="new-password" id="accountNewPassword" minlength="8" required="" type="password"/><button class="primary-button" type="submit">Update password</button></form>
+<div class="account-member-actions"><button class="secondary-button" id="accountSyncButton" type="button">Sync now</button><button class="danger-button" id="accountSignOutButton" type="button">Sign out</button></div>
+</section>
+<p aria-live="polite" class="account-status" id="accountStatus" role="status"></p>
+</dialog><dialog aria-labelledby="statsTitle" class="modal stats-modal" id="statsDialog">
+<div class="modal-head">
+<div>
+<p class="modal-eyebrow">Local progress</p>
+<h2 id="statsTitle">What your memory is doing</h2>
+<p id="statsStorageCopy">Your progress is saved in this browser.</p>
+</div>
+<button aria-label="Close progress" class="modal-close" id="statsClose" type="button">×</button>
+</div>
+<div class="stats-overview">
+<div><span>Games finished</span><strong id="statsGames">0</strong></div>
+<div><span>Questions solved</span><strong id="statsSolved">0</strong></div>
+<div><span>First-try accuracy</span><strong id="statsAccuracy">—</strong></div>
+<div><span>Best streak</span><strong id="statsBestStreak">0</strong></div>
+<div><span>Countries seen</span><strong id="statsSeen">0 / 197</strong></div>
+<div><span>Mastered</span><strong id="statsMastered">0</strong></div>
+</div>
+<section class="mastery-overview">
+<div><h3>World mastery</h3><strong id="worldMasteryLabel">0%</strong></div>
+<div class="meter extra-large"><span id="worldMasteryMeter"></span></div>
+<p id="worldMasteryCopy">Start a round and the map will learn where you need repetition.</p>
+</section>
+<div class="stats-columns">
+<section>
+<div class="section-head"><h3>Weak spots</h3><button class="text-button" id="practiceWeakButton" type="button">Practice all</button></div>
+<div class="weak-list" id="weakList"></div>
+</section>
+<section>
+<div class="section-head"><h3>Achievements</h3><span id="achievementCount">0 / 6</span></div>
+<div class="achievement-grid" id="achievementGrid"></div>
+</section>
+</div>
+<div class="data-actions">
+<button class="secondary-button" id="exportStatsButton" type="button">Export progress</button>
+<button class="danger-button" id="resetStatsButton" type="button">Reset progress</button>
+</div>
+</dialog>
+<dialog aria-labelledby="helpTitle" class="modal help-modal" id="helpDialog">
+<div class="modal-head">
+<div>
+<p class="modal-eyebrow">Controls</p>
+<h2 id="helpTitle">Keyboard and map shortcuts</h2>
+</div>
+<button aria-label="Close help" class="modal-close" id="helpClose" type="button">×</button>
+</div>
+<div class="shortcut-grid">
+<div><kbd>H</kbd><span>Use a hint</span></div>
+<div><kbd>S</kbd><span>Skip the current country</span></div>
+<div><kbd>+</kbd><span>Zoom in</span></div>
+<div><kbd>−</kbd><span>Zoom out</span></div>
+<div><kbd>0</kbd><span>Fit the current scope</span></div>
+<div><kbd>M</kbd><span>Toggle sound</span></div>
+<div><kbd>?</kbd><span>Open this panel</span></div>
+<div><kbd>Esc</kbd><span>Close a dialog</span></div>
+</div>
+<p class="help-note">On touchscreens, drag with one finger and pinch with two. Competitive games disable hints and skips, and each mistake adds two seconds.</p>
+</dialog>
+<div aria-atomic="true" aria-live="polite" class="toast-region" id="toastRegion"></div>
+<canvas aria-hidden="true" id="confettiCanvas"></canvas>
+<script src="config.js"></script><script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

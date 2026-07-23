@@ -1,0 +1,27 @@
+{
+  "name": "Atlas Arcade — Master the World Map",
+  "short_name": "Atlas Arcade",
+  "description": "Learn every country, capital and flag, with optional fastest-time leaderboards for every game mode.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#07101d",
+  "theme_color": "#08111f",
+  "categories": ["education", "games"],
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
