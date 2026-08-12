@@ -1,0 +1,85 @@
+name: Promote validated Atlas Arcade SEO release
+
+on:
+  push:
+    branches:
+      - seo-search-growth-2026-08
+    paths:
+      - .github/workflows/merge-validated-seo-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  validate-and-promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the SEO release
+        uses: actions/checkout@v4
+        with:
+          ref: seo-search-growth-2026-08
+          fetch-depth: 0
+
+      - name: Bring in the latest production branch
+        run: |
+          git fetch origin main
+          git rebase origin/main
+
+      - name: Regenerate the release idempotently
+        run: python scripts/apply_seo_release.py
+
+      - name: Validate production output
+        run: |
+          node --check app.js
+          node --check service-worker.js
+          node --check build_public.mjs
+          node build_public.mjs
+          python - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          root = Path('_site')
+          slugs = [
+              'world-map-quiz', 'country-quiz', 'capital-quiz', 'flag-quiz',
+              'country-spelling-quiz', 'learn-countries', 'geography-games',
+              'europe-map-quiz', 'africa-map-quiz', 'asia-map-quiz',
+              'americas-map-quiz', 'oceania-map-quiz'
+          ]
+
+          ElementTree.parse(root / 'sitemap.xml')
+          assert (root / 'index.html').exists()
+          assert (root / '404.html').exists()
+          assert (root / 'seo-pages.css').exists()
+
+          home = (root / 'index.html').read_text(encoding='utf-8')
+          assert 'atlasStructuredData' in home
+          assert 'setup-seo-links' in home
+          assert 'rel="canonical"' in home
+
+          for slug in slugs:
+              target = root / slug / 'index.html'
+              assert target.exists(), target
+              text = target.read_text(encoding='utf-8')
+              assert '<h1>' in text
+              assert 'name="description"' in text
+              assert 'rel="canonical"' in text
+              assert 'application/ld+json' in text
+
+          sitemap = (root / 'sitemap.xml').read_text(encoding='utf-8')
+          assert sitemap.count('<url>') == len(slugs) + 1
+          print(f'Validated homepage plus {len(slugs)} search landing pages.')
+          PY
+
+      - name: Commit any final generated changes
+        run: |
+          git config user.name "Atlas Arcade Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html styles.css build_public.mjs build_public.py service-worker.js sitemap.xml robots.txt seo-pages.css 404.html world-map-quiz country-quiz capital-quiz flag-quiz country-spelling-quiz learn-countries geography-games europe-map-quiz africa-map-quiz asia-map-quiz americas-map-quiz oceania-map-quiz
+          if ! git diff --cached --quiet; then
+            git commit -m "Finalize Atlas Arcade SEO release"
+          fi
+
+      - name: Push the validated release to production
+        run: git push origin HEAD:main
