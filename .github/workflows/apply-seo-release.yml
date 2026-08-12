@@ -1,0 +1,81 @@
+name: Apply Atlas Arcade SEO release
+
+on:
+  push:
+    branches:
+      - seo-search-growth-2026-08
+    paths:
+      - .github/workflows/apply-seo-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out SEO branch
+        uses: actions/checkout@v4
+        with:
+          ref: seo-search-growth-2026-08
+          fetch-depth: 0
+
+      - name: Generate search pages and technical SEO
+        run: python scripts/apply_seo_release.py
+
+      - name: Validate JavaScript and builds
+        run: |
+          node --check app.js
+          node --check service-worker.js
+          node --check build_public.mjs
+          node build_public.mjs
+          test -f _site/index.html
+          test -f _site/sitemap.xml
+          test -f _site/world-map-quiz/index.html
+          test -f _site/country-quiz/index.html
+          test -f _site/capital-quiz/index.html
+          test -f _site/flag-quiz/index.html
+          test -f _site/learn-countries/index.html
+          test -f _site/geography-games/index.html
+          python - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+          root = Path('_site')
+          ElementTree.parse(root / 'sitemap.xml')
+          pages = list(root.glob('*/index.html'))
+          assert len(pages) >= 12, len(pages)
+          for page in pages:
+              text = page.read_text(encoding='utf-8')
+              assert '<title>' in text
+              assert 'name="description"' in text
+              assert 'rel="canonical"' in text
+          print(f'Validated {len(pages)} indexable HTML pages.')
+          PY
+
+      - name: Commit generated release
+        run: |
+          git config user.name "Atlas Arcade Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html styles.css build_public.mjs build_public.py service-worker.js sitemap.xml robots.txt seo-pages.css 404.html world-map-quiz country-quiz capital-quiz flag-quiz country-spelling-quiz learn-countries geography-games europe-map-quiz africa-map-quiz asia-map-quiz americas-map-quiz oceania-map-quiz
+          if git diff --cached --quiet; then
+            echo "SEO release is already current."
+          else
+            git commit -m "Publish Atlas Arcade search growth pages"
+            git push origin HEAD:seo-search-growth-2026-08
+          fi
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh pr view seo-search-growth-2026-08 --json number >/dev/null 2>&1; then
+            echo "Pull request already exists."
+          else
+            gh pr create \
+              --base main \
+              --head seo-search-growth-2026-08 \
+              --title "Publish Atlas Arcade SEO and search landing pages" \
+              --body "Adds twelve useful, indexable geography pages; canonical metadata; structured data; internal guide links; a complete XML sitemap; robots discovery; a 404 page; service-worker coverage; and matching Node/Python deployment builds. The workflow validates syntax, sitemap XML, canonical tags, page output, and deployment files before opening this PR."
+          fi
